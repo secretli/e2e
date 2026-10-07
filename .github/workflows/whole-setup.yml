@@ -1,0 +1,176 @@
+name: Whole setup
+
+# The whole of Secretli as production runs it, with both clients: the stack
+# (stack/), the gateway's routing, the command-line journeys
+# (cli/journeys.sh), the command-line client together with the browser
+# (browser/), and the oldest client release the server still supports.
+#
+# Runs here on every change and nightly, against everything at main. The
+# component repositories call it with their own change in place of one
+# published part, for example:
+#
+#   whole-setup:
+#     uses: secretli/e2e/.github/workflows/whole-setup.yml@main
+#     with:
+#       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      server_ref:
+        description: Build secretli/server at this ref instead of using its published image
+        type: string
+        default: ""
+      web_ref:
+        description: Build secretli/web at this ref instead of using its published image
+        type: string
+        default: ""
+      cli_ref:
+        description: Build secretli/cli at this ref instead of using its latest release
+        type: string
+        default: ""
+      cli_compat_version:
+        description: An older client release to run the journeys with too (default the oldest supported)
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      server_ref:
+        type: string
+        default: ""
+      web_ref:
+        type: string
+        default: ""
+      cli_ref:
+        type: string
+        default: ""
+      cli_compat_version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  whole-setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SERVER_REF: ${{ inputs.server_ref }}
+      WEB_REF: ${{ inputs.web_ref }}
+      CLI_REF: ${{ inputs.cli_ref }}
+      # The oldest client release the server promises to keep working with:
+      # people do not upgrade what they installed. Raise it on purpose when
+      # a change has to leave older clients behind.
+      CLI_COMPAT_VERSION: ${{ inputs.cli_compat_version || 'v0.3.0' }}
+    steps:
+      # Called from another repository, this workflow still needs its own
+      # files: the stack, the journeys and the browser tests.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: secretli/e2e
+          ref: ${{ github.repository == 'secretli/e2e' && github.ref || 'main' }}
+          persist-credentials: false
+
+      - name: Check out the server under test
+        if: env.SERVER_REF != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: secretli/server
+          ref: ${{ env.SERVER_REF }}
+          path: _build/server
+          persist-credentials: false
+
+      - name: Build the server under test
+        if: env.SERVER_REF != ''
+        run: |
+          docker build -t secretli-server:under-test _build/server
+          echo "SERVER_IMAGE=secretli-server:under-test" >> "$GITHUB_ENV"
+
+      - name: Check out the web app under test
+        if: env.WEB_REF != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: secretli/web
+          ref: ${{ env.WEB_REF }}
+          path: _build/web
+          persist-credentials: false
+
+      - name: Build the web app under test
+        if: env.WEB_REF != ''
+        run: |
+          docker build --build-arg VERSION="$(git -C _build/web rev-parse HEAD)" -t secretli-web:under-test _build/web
+          echo "WEB_IMAGE=secretli-web:under-test" >> "$GITHUB_ENV"
+
+      - name: Check out the client under test
+        if: env.CLI_REF != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: secretli/cli
+          ref: ${{ env.CLI_REF }}
+          path: _build/cli
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Install the clients
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/compat"
+          if [ -n "$CLI_REF" ]; then
+            (cd _build/cli && go build -o "$RUNNER_TEMP/bin/secretli" ./cmd/secretli)
+          else
+            GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
+          fi
+          "$RUNNER_TEMP/bin/secretli" --version
+          GOBIN="$RUNNER_TEMP/compat" go install "github.com/secretli/cli/cmd/secretli@${CLI_COMPAT_VERSION}"
+          "$RUNNER_TEMP/compat/secretli" --version
+
+      - name: Start the stack
+        run: stack/stack.sh up
+
+      - name: Routing
+        run: stack/routing-checks.sh
+
+      - name: Command-line journeys
+        run: SECRETLI_CLI="$RUNNER_TEMP/bin/secretli" cli/journeys.sh
+
+      - name: Command-line journeys with the oldest supported client
+        run: SECRETLI_CLI="$RUNNER_TEMP/compat/secretli" cli/journeys.sh
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: browser/package.json
+          run_install: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: browser/pnpm-lock.yaml
+
+      - name: Install the browser tests
+        working-directory: browser
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      - name: The client and the browser together
+        working-directory: browser
+        run: SECRETLI_CLI="$RUNNER_TEMP/bin/secretli" pnpm test
+
+      - name: Logs
+        if: failure()
+        run: stack/stack.sh logs
+
+      - name: Stop the stack
+        if: always()
+        run: stack/stack.sh down || true

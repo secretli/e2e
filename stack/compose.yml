@@ -1,0 +1,79 @@
+# The whole of Secretli as production runs it: the web image and the server
+# image behind a gateway that sends /api/ to the server and everything else
+# to the web app, on one origin, with PostgreSQL and SeaweedFS.
+#
+#   stack/stack.sh up      # http://localhost:8080
+#   stack/stack.sh down
+#
+# WEB_IMAGE and SERVER_IMAGE pick the images and default to the latest
+# published ones; a component's CI sets one of them to its own build. Every
+# test comes from one address, so the server's rate limits are raised
+# (RATE_LIMIT_MULTIPLIER); production leaves that unset.
+name: secretli-e2e
+
+services:
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - server
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/secretli/web:main}
+
+  server:
+    image: ${SERVER_IMAGE:-ghcr.io/secretli/server:main}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      createbucket:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://secretli:secretli@postgres:5432/secretli?sslmode=disable
+      S3_ENDPOINT: seaweedfs:8333
+      S3_BUCKET: secretli
+      S3_ACCESS_KEY: admin
+      S3_SECRET_KEY: admin
+      S3_USE_SSL: "false"
+      S3_REGION: us-east-1
+      SERVER_PORT: "8080"
+      RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-100}
+
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: secretli
+      POSTGRES_PASSWORD: secretli
+      POSTGRES_DB: secretli
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secretli -d secretli"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.21
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: admin
+    command: "server -s3 -dir=/data"
+
+  createbucket:
+    image: curlimages/curl:8.22.0
+    depends_on:
+      - seaweedfs
+    entrypoint: >
+      /bin/sh -c "
+      for i in $$(seq 1 30); do
+        code=$$(curl -s -o /dev/null -w '%{http_code}' --aws-sigv4 'aws:amz:us-east-1:s3' --user 'admin:admin' -X PUT http://seaweedfs:8333/secretli || true);
+        if [ $$code = 200 ] || [ $$code = 409 ]; then
+          exit 0;
+        fi;
+        sleep 1;
+      done;
+      exit 1;
+      "

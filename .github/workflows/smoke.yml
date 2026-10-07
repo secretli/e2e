@@ -1,0 +1,59 @@
+name: Smoke
+
+# Checks a deployed Secretli from the outside (smoke/smoke.sh), every hour
+# and on demand: health, the version and the gateway's routing, and it
+# shares and opens a test secret that expires after five minutes and hands
+# a link over with a code. create_secrets: false checks without writing.
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: The Secretli to check
+        type: string
+        default: https://secretli.app
+      create_secrets:
+        description: Also share, open and hand over short-lived test secrets
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      url:
+        type: string
+        default: https://secretli.app
+      create_secrets:
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # A schedule has no inputs: the defaults apply.
+      SMOKE_URL: ${{ inputs.url || 'https://secretli.app' }}
+      SMOKE_CREATE_SECRETS: ${{ (github.event_name == 'schedule' || inputs.create_secrets) && '1' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: secretli/e2e
+          ref: ${{ github.repository == 'secretli/e2e' && github.ref || 'main' }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: env.SMOKE_CREATE_SECRETS == '1'
+        with:
+          go-version: stable
+          cache: false
+
+      - name: Install the client
+        if: env.SMOKE_CREATE_SECRETS == '1'
+        run: GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
+
+      - name: Smoke
+        run: SECRETLI_CLI="$RUNNER_TEMP/bin/secretli" smoke/smoke.sh
