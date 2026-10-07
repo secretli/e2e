@@ -2,7 +2,7 @@ name: Smoke
 
 # Checks a deployed Secretli from the outside (smoke/smoke.sh): after every
 # deploy, every hour and on demand. Health, the version and the gateway's
-# routing, and it shares and opens a test secret that expires after five
+# routing, through every address the name resolves to, and it shares and opens a test secret that expires after five
 # minutes and hands a link over with a code. create_secrets: false checks
 # without writing.
 #
