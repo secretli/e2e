@@ -168,9 +168,12 @@ jobs:
 
       - name: Install the browser tests
         working-directory: browser
+        timeout-minutes: 10
         run: |
           pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+          # Without --with-deps: the runner image already has the libraries
+          # Chromium needs, and apt-get update can hang on a stalled mirror.
+          pnpm exec playwright install chromium
 
       - name: The client and the browser together
         working-directory: browser
