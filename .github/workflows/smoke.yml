@@ -1,11 +1,20 @@
 name: Smoke
 
-# Checks a deployed Secretli from the outside (smoke/smoke.sh), every hour
-# and on demand: health, the version and the gateway's routing, and it
-# shares and opens a test secret that expires after five minutes and hands
-# a link over with a code. create_secrets: false checks without writing.
+# Checks a deployed Secretli from the outside (smoke/smoke.sh): after every
+# deploy, every hour and on demand. Health, the version and the gateway's
+# routing, and it shares and opens a test secret that expires after five
+# minutes and hands a link over with a code. create_secrets: false checks
+# without writing.
+#
+# Deploys are announced by Flux (pscheid92/k8s, apps/secretli/
+# deploy-notifications.yaml) as repository_dispatch events about its
+# secretli Kustomization: "Health check passed" once a deploy is rolled out
+# and healthy, and errors when one fails, which fail a run here.
+
+run-name: ${{ github.event_name == 'repository_dispatch' && format('After deploy of {0}', github.event.client_payload.metadata.revision) || 'Smoke' }}
 
 on:
+  repository_dispatch:
   schedule:
     - cron: "41 * * * *"
   workflow_dispatch:
@@ -31,14 +40,40 @@ permissions:
   contents: read
 
 jobs:
+  # Flux reported a failed deploy of Secretli: fail, so it is noticed.
+  deploy-failed:
+    if: github.event_name == 'repository_dispatch' && github.event.client_payload.involvedObject.name == 'secretli' && github.event.client_payload.severity == 'error'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report the failed deploy
+        env:
+          REASON: ${{ github.event.client_payload.reason }}
+          MESSAGE: ${{ github.event.client_payload.message }}
+          REVISION: ${{ github.event.client_payload.metadata.revision }}
+        run: |
+          echo "::error title=Secretli deploy failed (${REASON})::${MESSAGE}"
+          echo "revision: ${REVISION}"
+          exit 1
+
   smoke:
+    if: github.event_name != 'repository_dispatch' || (github.event.client_payload.involvedObject.name == 'secretli' && github.event.client_payload.severity == 'info')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # A schedule has no inputs: the defaults apply.
+      # A schedule or a deploy has no inputs: the defaults apply.
       SMOKE_URL: ${{ inputs.url || 'https://secretli.app' }}
-      SMOKE_CREATE_SECRETS: ${{ (github.event_name == 'schedule' || inputs.create_secrets) && '1' || '' }}
+      SMOKE_CREATE_SECRETS: ${{ (github.event_name == 'schedule' || github.event_name == 'repository_dispatch' || inputs.create_secrets) && '1' || '' }}
     steps:
+      - name: The deploy
+        if: github.event_name == 'repository_dispatch'
+        env:
+          MESSAGE: ${{ github.event.client_payload.message }}
+          REVISION: ${{ github.event.client_payload.metadata.revision }}
+        run: |
+          echo "Flux: ${MESSAGE}"
+          echo "k8s revision: ${REVISION}"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: secretli/e2e
