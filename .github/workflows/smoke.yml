@@ -53,7 +53,13 @@ jobs:
 
       - name: Install the client
         if: env.SMOKE_CREATE_SECRETS == '1'
-        run: GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
+        run: |
+          # The module proxy now and then drops a download; try again.
+          for attempt in 1 2 3; do
+            GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest && exit 0
+            sleep $((attempt * 5))
+          done
+          exit 1
 
       - name: Smoke
         run: SECRETLI_CLI="$RUNNER_TEMP/bin/secretli" smoke/smoke.sh

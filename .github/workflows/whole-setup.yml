@@ -124,14 +124,23 @@ jobs:
 
       - name: Install the clients
         run: |
+          # The module proxy now and then drops a download; try again.
+          retry() {
+            for attempt in 1 2 3; do
+              "$@" && return 0
+              echo "attempt $attempt failed: $*" >&2
+              sleep $((attempt * 5))
+            done
+            return 1
+          }
           mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/compat"
           if [ -n "$CLI_REF" ]; then
-            (cd _build/cli && go build -o "$RUNNER_TEMP/bin/secretli" ./cmd/secretli)
+            (cd _build/cli && retry go build -o "$RUNNER_TEMP/bin/secretli" ./cmd/secretli)
           else
-            GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
+            retry env GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
           fi
           "$RUNNER_TEMP/bin/secretli" --version
-          GOBIN="$RUNNER_TEMP/compat" go install "github.com/secretli/cli/cmd/secretli@${CLI_COMPAT_VERSION}"
+          retry env GOBIN="$RUNNER_TEMP/compat" go install "github.com/secretli/cli/cmd/secretli@${CLI_COMPAT_VERSION}"
           "$RUNNER_TEMP/compat/secretli" --version
 
       - name: Start the stack
