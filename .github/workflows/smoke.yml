@@ -9,7 +9,10 @@ name: Smoke
 # Deploys are announced by Flux (pscheid92/k8s, apps/secretli/
 # deploy-notifications.yaml) as repository_dispatch events about its
 # secretli Kustomization: "Health check passed" once a deploy is rolled out
-# and healthy, and errors when one fails, which fail a run here.
+# and healthy, what it deleted for a deploy that only deletes something, and
+# errors when one fails, which fail a run here. A deploy that changes and
+# deletes things is announced twice, deletions first; the later run cancels
+# the earlier one, so each deploy ends with one run for its final state.
 
 run-name: ${{ github.event_name == 'repository_dispatch' && format('After deploy of {0}', github.event.client_payload.metadata.revision) || 'Smoke' }}
 
@@ -35,6 +38,12 @@ on:
       create_secrets:
         type: boolean
         default: true
+
+# One run per announced revision: a later announcement of the same revision
+# cancels the run before it. Runs started otherwise never cancel each other.
+concurrency:
+  group: smoke-${{ github.event.client_payload.metadata.revision || github.run_id }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
