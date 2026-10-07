@@ -7,7 +7,7 @@ Tests of the whole of [Secretli](https://secretli.app): the [server](https://git
 - **Routing** (`stack/routing-checks.sh`): one origin, where `/api/` reaches the server and everything else the web app.
 - **Command-line journeys** (`cli/journeys.sh`): share, look, open and delete secrets, with and without a password, a 40 MiB upload in several parts, and handing a link over with a code, checking every answer and exit code. It also runs with older client releases, to check that the server still works with what people have installed: flags a release does not know are left out, and journeys it cannot make are skipped.
 - **The client and the browser together** (`browser/`): links made by one open in the other, pasted or handed over with a code.
-- **Production** (`smoke/smoke.sh`): health, the version and the routing of a deployed Secretli; optionally also a secret that expires after five minutes and a handover with a code.
+- **Production** (`smoke/smoke.sh`): health, the version and the routing of a deployed Secretli, and that each address its name resolves to answers; optionally also a secret that expires after five minutes and a handover with a code.
 
 The web app's own flows, the server's API and the client's commands are tested in their repositories.
 
@@ -44,7 +44,7 @@ Every test comes from one address, so the stack's server runs with raised rate l
   ```
 
   `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. The journeys always run a second time with the oldest client release the server promises to keep working with, v0.3.0, because people do not upgrade what they installed; `cli_compat_version` picks another. That version is raised on purpose, when a change has to leave older clients behind.
-- **Smoke** (`.github/workflows/smoke.yml`) checks secretli.app after every deploy, every hour and on demand. Flux announces each Secretli deploy once it is rolled out and healthy (or, for a deploy that only deletes something, once it has deleted it), as a `repository_dispatch` event (set up in pscheid92/k8s, `apps/secretli/deploy-notifications.yaml`); a deploy Flux reports as failed fails a run here, so it gets noticed. The smoke test checks health, the version and the routing, and shares and opens a secret that expires after five minutes and hands a link over with a code. `create_secrets: false` checks without writing to the server.
+- **Smoke** (`.github/workflows/smoke.yml`) checks secretli.app after every deploy, every hour and on demand. Flux announces each Secretli deploy once it is rolled out and healthy (or, for a deploy that only deletes something, once it has deleted it), as a `repository_dispatch` event (set up in pscheid92/k8s, `apps/secretli/deploy-notifications.yaml`); a deploy Flux reports as failed fails a run here, so it gets noticed. The smoke test checks health, the version and the routing, that every address of secretli.app answers, and shares and opens a secret that expires after five minutes and hands a link over with a code. `create_secrets: false` checks without writing to the server.
 - **CI** runs shellcheck on the scripts.
 
 Every repository's checks depend on this one's main branch, so changes here go through a pull request whose own run of the whole setup must pass first.
