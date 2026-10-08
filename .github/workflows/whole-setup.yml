@@ -112,6 +112,11 @@ jobs:
           cache: false
 
       - name: Install the client
+        # setup-go's "stable" can trail a fresh Go release for hours, and a
+        # client built at a ref may already require it: let go fetch the
+        # toolchain the client's go.mod asks for.
+        env:
+          GOTOOLCHAIN: auto
         run: |
           # The module proxy now and then drops a download; try again.
           retry() {

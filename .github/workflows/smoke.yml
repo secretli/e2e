@@ -97,6 +97,10 @@ jobs:
 
       - name: Install the client
         if: env.SMOKE_CREATE_SECRETS == '1'
+        # setup-go's "stable" can trail a fresh Go release for hours, and the
+        # latest client may already require it: let go fetch the toolchain.
+        env:
+          GOTOOLCHAIN: auto
         run: |
           # The module proxy now and then drops a download; try again.
           for attempt in 1 2 3; do
