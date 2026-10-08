@@ -100,9 +100,8 @@ cmp -s "$work/notes.txt" "$work/received/notes.txt" || fail "notes.txt differs a
 pass "both files come back byte for byte"
 
 expect_exit 0 "a reusable secret stays and remembers that it was opened" -- "$CLI" status "$owner" --json
-# The server keeps whether it was opened, not when; clients before that
-# change still print opened_at.
-[ "$(jq -r '.opened // (.opened_at != null)' "$work/out")" = true ] || fail "it should say it was opened"
+# The server keeps whether it was opened, not when.
+[ "$(jq -r .opened "$work/out")" = true ] || fail "it should say it was opened"
 
 # --- deleting ---
 expect_exit 1 "the recipient's link cannot delete" -- "$CLI" delete "$link" --yes
