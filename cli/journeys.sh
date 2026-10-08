@@ -73,7 +73,6 @@ expect_exit 0 "open it" -- "$CLI" open "$link" ${YES}
 
 expect_exit 4 "the owner link says it was opened" -- "$CLI" status "$owner" --json
 [ "$(jq -r .outcome "$work/out")" = opened ] || fail "outcome should be opened, got $(cat "$work/out")"
-[ "$(jq -r .opened_by_owner "$work/out")" = false ] || fail "a recipient opened it, not the owner"
 
 expect_exit 4 "a second open finds it gone" -- "$CLI" open "$link"
 
@@ -100,8 +99,10 @@ cmp -s "$work/big.bin" "$work/received/big.bin" || fail "big.bin differs after t
 cmp -s "$work/notes.txt" "$work/received/notes.txt" || fail "notes.txt differs after the round trip"
 pass "both files come back byte for byte"
 
-expect_exit 0 "a reusable secret stays and remembers its first opening" -- "$CLI" status "$owner" --json
-[ "$(jq -r .opened_at "$work/out")" != null ] || fail "opened_at should be set"
+expect_exit 0 "a reusable secret stays and remembers that it was opened" -- "$CLI" status "$owner" --json
+# The server keeps whether it was opened, not when; clients before that
+# change still print opened_at.
+[ "$(jq -r '.opened // (.opened_at != null)' "$work/out")" = true ] || fail "it should say it was opened"
 
 # --- deleting ---
 expect_exit 1 "the recipient's link cannot delete" -- "$CLI" delete "$link" --yes

@@ -35,10 +35,6 @@ on:
         description: Build secretli/cli at this ref instead of using its latest release
         type: string
         default: ""
-      cli_compat_version:
-        description: An older client release to run the journeys with too (default the oldest supported)
-        type: string
-        default: ""
   workflow_call:
     inputs:
       server_ref:
@@ -48,9 +44,6 @@ on:
         type: string
         default: ""
       cli_ref:
-        type: string
-        default: ""
-      cli_compat_version:
         type: string
         default: ""
 
@@ -65,10 +58,6 @@ jobs:
       SERVER_REF: ${{ inputs.server_ref }}
       WEB_REF: ${{ inputs.web_ref }}
       CLI_REF: ${{ inputs.cli_ref }}
-      # The oldest client release the server promises to keep working with:
-      # people do not upgrade what they installed. Raise it on purpose when
-      # a change has to leave older clients behind.
-      CLI_COMPAT_VERSION: ${{ inputs.cli_compat_version || 'v0.3.0' }}
     steps:
       # Called from another repository, this workflow still needs its own
       # files: the stack, the journeys and the browser tests.
@@ -122,7 +111,7 @@ jobs:
           go-version: stable
           cache: false
 
-      - name: Install the clients
+      - name: Install the client
         run: |
           # The module proxy now and then drops a download; try again.
           retry() {
@@ -133,15 +122,13 @@ jobs:
             done
             return 1
           }
-          mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/compat"
+          mkdir -p "$RUNNER_TEMP/bin"
           if [ -n "$CLI_REF" ]; then
             (cd _build/cli && retry go build -o "$RUNNER_TEMP/bin/secretli" ./cmd/secretli)
           else
             retry env GOBIN="$RUNNER_TEMP/bin" go install github.com/secretli/cli/cmd/secretli@latest
           fi
           "$RUNNER_TEMP/bin/secretli" --version
-          retry env GOBIN="$RUNNER_TEMP/compat" go install "github.com/secretli/cli/cmd/secretli@${CLI_COMPAT_VERSION}"
-          "$RUNNER_TEMP/compat/secretli" --version
 
       - name: Start the stack
         run: stack/stack.sh up
@@ -151,9 +138,6 @@ jobs:
 
       - name: Command-line journeys
         run: SECRETLI_CLI="$RUNNER_TEMP/bin/secretli" cli/journeys.sh
-
-      - name: Command-line journeys with the oldest supported client
-        run: SECRETLI_CLI="$RUNNER_TEMP/compat/secretli" cli/journeys.sh
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:

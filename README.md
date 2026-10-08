@@ -43,7 +43,7 @@ Every test comes from one address, so the stack's server runs with raised rate l
       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
   ```
 
-  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. The journeys always run a second time with the oldest client release the server promises to keep working with, v0.3.0, because people do not upgrade what they installed; `cli_compat_version` picks another. That version is raised on purpose, when a change has to leave older clients behind.
+  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. Only the latest client is supported, so the journeys run with that one alone.
 - **Smoke** (`.github/workflows/smoke.yml`) checks secretli.app after every deploy, every hour and on demand. Flux announces each Secretli deploy once it is rolled out and healthy (or, for a deploy that only deletes something, once it has deleted it), as a `repository_dispatch` event (set up in pscheid92/k8s, `apps/secretli/deploy-notifications.yaml`); a deploy Flux reports as failed fails a run here, so it gets noticed. The smoke test checks health, the version and the routing, that every address of secretli.app answers, and shares and opens a secret that expires after five minutes and hands a link over with a code. `create_secrets: false` checks without writing to the server.
 - **CI** runs shellcheck on the scripts.
 
