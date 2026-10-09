@@ -94,7 +94,8 @@ else
 fi
 SECRETLI_PASSWORD=wrong expect_exit 3 "a wrong password is refused" -- "$CLI" open "$link" --out "$work/wrong"
 
-SECRETLI_PASSWORD=hunter2 expect_exit 0 "open with the password" -- "$CLI" open "$link" --out "$work/received"
+# --yes saves both files; at a terminal the client would ask which.
+SECRETLI_PASSWORD=hunter2 expect_exit 0 "open with the password" -- "$CLI" open "$link" --out "$work/received" ${YES}
 cmp -s "$work/big.bin" "$work/received/big.bin" || fail "big.bin differs after the round trip"
 cmp -s "$work/notes.txt" "$work/received/notes.txt" || fail "notes.txt differs after the round trip"
 pass "both files come back byte for byte"
