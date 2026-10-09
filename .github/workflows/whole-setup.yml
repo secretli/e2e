@@ -46,6 +46,11 @@ on:
       cli_ref:
         type: string
         default: ""
+    # Callers pass it with `secrets: inherit`; without it, images are pulled
+    # anonymously.
+    secrets:
+      DOCKERHUB_TOKEN:
+        required: false
 
 permissions:
   contents: read
@@ -58,6 +63,7 @@ jobs:
       SERVER_REF: ${{ inputs.server_ref }}
       WEB_REF: ${{ inputs.web_ref }}
       CLI_REF: ${{ inputs.cli_ref }}
+      DOCKERHUB_LOGIN: ${{ secrets.DOCKERHUB_TOKEN != '' }}
     steps:
       # Called from another repository, this workflow still needs its own
       # files: the stack, the journeys and the browser tests.
@@ -66,6 +72,16 @@ jobs:
           repository: secretli/e2e
           ref: ${{ github.repository == 'secretli/e2e' && github.ref || 'main' }}
           persist-credentials: false
+
+      # Docker Hub limits anonymous pulls from shared runners, so pulls are
+      # made as the organisation's read-only Docker Hub user, whenever the
+      # caller passed the token on.
+      - name: Log in to Docker Hub
+        if: env.DOCKERHUB_LOGIN == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Check out the server under test
         if: env.SERVER_REF != ''
