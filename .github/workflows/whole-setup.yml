@@ -73,11 +73,13 @@ jobs:
           ref: ${{ github.repository == 'secretli/e2e' && github.ref || 'main' }}
           persist-credentials: false
 
-      # Docker Hub limits anonymous pulls from shared runners, so pulls are
-      # made as the organisation's read-only Docker Hub user, whenever the
-      # caller passed the token on.
+      # SeaweedFS is only on Docker Hub, which limits anonymous pulls from
+      # shared runners: pull it as the organisation's read-only user whenever
+      # the caller passed the token on. A failed login leaves an anonymous
+      # pull, which usually still works.
       - name: Log in to Docker Hub
         if: env.DOCKERHUB_LOGIN == 'true'
+        continue-on-error: true
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
