@@ -9,15 +9,11 @@
 # published ones; a component's CI sets one of them to its own build. Every
 # test comes from one address, so the server's rate limits are raised
 # (RATE_LIMIT_MULTIPLIER); production leaves that unset.
-#
-# Third-party images come from mirror.gcr.io, Google's mirror of Docker Hub:
-# the same images, without the limit Docker Hub puts on anonymous pulls from
-# shared CI runners.
 name: secretli-e2e
 
 services:
   gateway:
-    image: mirror.gcr.io/library/nginx:alpine
+    image: nginx:alpine
     ports:
       - "8080:8080"
     volumes:
@@ -47,7 +43,7 @@ services:
       RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-100}
 
   postgres:
-    image: mirror.gcr.io/library/postgres:18-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: secretli
       POSTGRES_PASSWORD: secretli
@@ -59,14 +55,14 @@ services:
       retries: 30
 
   seaweedfs:
-    image: mirror.gcr.io/chrislusf/seaweedfs:4.21
+    image: chrislusf/seaweedfs:4.21
     environment:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: admin
     command: "server -s3 -dir=/data"
 
   createbucket:
-    image: mirror.gcr.io/curlimages/curl:8.22.0
+    image: curlimages/curl:8.22.0
     depends_on:
       - seaweedfs
     entrypoint: >
