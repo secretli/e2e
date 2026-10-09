@@ -71,8 +71,10 @@ fi
 expect_exit 0 "open it" -- "$CLI" open "$link" ${YES}
 [ "$(cat "$work/out")" = "$text" ] || fail "opened text differs: $(cat "$work/out")"
 
-expect_exit 4 "the owner link says it was opened" -- "$CLI" status "$owner" --json
-[ "$(jq -r .outcome "$work/out")" = opened ] || fail "outcome should be opened, got $(cat "$work/out")"
+# The server keeps nothing about a secret once it is gone, so the owner link
+# learns only that, not whether it was opened, deleted or expired.
+expect_exit 4 "the owner link says it is gone" -- "$CLI" status "$owner" --json
+[ "$(jq -r .state "$work/out")" = gone ] || fail "state should be gone, got $(cat "$work/out")"
 
 expect_exit 4 "a second open finds it gone" -- "$CLI" open "$link"
 
@@ -107,8 +109,8 @@ expect_exit 0 "a reusable secret stays and remembers that it was opened" -- "$CL
 # --- deleting ---
 expect_exit 1 "the recipient's link cannot delete" -- "$CLI" delete "$link" --yes
 expect_exit 0 "the owner link deletes" -- "$CLI" delete "$owner" --yes
-expect_exit 4 "and the owner link says so" -- "$CLI" status "$owner" --json
-[ "$(jq -r .outcome "$work/out")" = deleted ] || fail "outcome should be deleted"
+expect_exit 4 "and the owner link says it is gone" -- "$CLI" status "$owner" --json
+[ "$(jq -r .state "$work/out")" = gone ] || fail "state should be gone, got $(cat "$work/out")"
 
 # --- handing a link over with a code, through the relay (since v0.3.0) ---
 if ! "$CLI" send --help > /dev/null 2>&1; then
