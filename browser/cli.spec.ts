@@ -120,9 +120,10 @@ test.describe("Command-line client", () => {
     expect(received.stderr).toContain("A one-time text secret");
     await expect(page.getByText("Sent. The other device is opening the secret.")).toBeVisible();
 
-    // The owner's status says it was opened, and exits 4.
+    // The owner's status says it is gone, and exits 4. Servers that kept
+    // what became of a secret said it was opened; now nothing is kept.
     const status = await run(CLI, ["status", ownerLink]).catch((err) => err);
     expect(status.code).toBe(4);
-    expect(status.stdout).toContain("Your secret was opened");
+    expect(status.stdout).toMatch(/Your secret was opened|This secret is gone/);
   });
 });
