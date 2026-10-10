@@ -9,11 +9,15 @@
 # published ones; a component's CI sets one of them to its own build. Every
 # test comes from one address, so the server's rate limits are raised
 # (RATE_LIMIT_MULTIPLIER); production leaves that unset.
+#
+# Third-party images come from their official publications outside Docker
+# Hub, which limits pulls: Docker's own nginx and Postgres on Amazon ECR
+# Public, curl's on quay.io. Only SeaweedFS is on Docker Hub alone.
 name: secretli-e2e
 
 services:
   gateway:
-    image: nginx:alpine
+    image: public.ecr.aws/docker/library/nginx:alpine
     ports:
       - "8080:8080"
     volumes:
@@ -43,7 +47,7 @@ services:
       RATE_LIMIT_MULTIPLIER: ${RATE_LIMIT_MULTIPLIER:-100}
 
   postgres:
-    image: postgres:18-alpine
+    image: public.ecr.aws/docker/library/postgres:18-alpine
     environment:
       POSTGRES_USER: secretli
       POSTGRES_PASSWORD: secretli
@@ -62,7 +66,7 @@ services:
     command: "server -s3 -dir=/data"
 
   createbucket:
-    image: curlimages/curl:8.22.0
+    image: quay.io/curl/curl:8.22.0
     depends_on:
       - seaweedfs
     entrypoint: >
