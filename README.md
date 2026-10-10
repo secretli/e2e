@@ -5,7 +5,7 @@ Tests of the whole of [Secretli](https://secretli.app): the [server](https://git
 ## What it checks
 
 - **Routing** (`stack/routing-checks.sh`): one origin, where `/api/` reaches the server and everything else the web app.
-- **Command-line journeys** (`cli/journeys.sh`): share, look, open and delete secrets, with and without a password, a 40 MiB upload in several parts, and handing a link over with a code, checking every answer and exit code. It also runs with older client releases, to check that the server still works with what people have installed: flags a release does not know are left out, and journeys it cannot make are skipped.
+- **Command-line journeys** (`cli/journeys.sh`): share, look, open and delete secrets, with and without a password, a 40 MiB upload in several parts, and handing a link over with a code, checking every answer and exit code. They run with one client: the latest release, or the one under test.
 - **The client and the browser together** (`browser/`): links made by one open in the other, pasted or handed over with a code.
 - **Production** (`smoke/smoke.sh`): health, the version and the routing of a deployed Secretli, and that each address its name resolves to answers; optionally also a secret that expires after five minutes and a handover with a code.
 
@@ -13,7 +13,7 @@ The web app's own flows, the server's API and the client's commands are tested i
 
 ## Running it locally
 
-Docker, Node 24 with pnpm 10, and a `secretli` binary:
+Docker, Node 24 with pnpm 12, and a `secretli` binary:
 
 ```bash
 stack/stack.sh up                               # the latest published images, on http://localhost:8080
@@ -30,7 +30,7 @@ docker build -t secretli-server:local ../server
 SERVER_IMAGE=secretli-server:local stack/stack.sh up
 ```
 
-Every test comes from one address, so the stack's server runs with raised rate limits (`RATE_LIMIT_MULTIPLIER`, 100 by default); production leaves that unset.
+Every test comes from one address, so the stack's server runs with raised rate limits (`RATE_LIMIT_MULTIPLIER`, 100 by default); production leaves that unset. Its third-party images come from their official sources outside Docker Hub, which limits pulls; only SeaweedFS is on Docker Hub alone.
 
 ## In CI
 
@@ -39,11 +39,12 @@ Every test comes from one address, so the stack's server runs with raised rate l
   ```yaml
   whole-setup:
     uses: secretli/e2e/.github/workflows/whole-setup.yml@main
+    secrets: inherit
     with:
       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
   ```
 
-  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. Only the latest client is supported, so the journeys run with that one alone.
+  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. Only the latest client is supported, so the journeys run with that one alone. `secrets: inherit` passes on the organisation's Docker Hub token (secret `DOCKERHUB_TOKEN`, user in the variable `DOCKERHUB_USERNAME`), a read-only login for pulling SeaweedFS, since Docker Hub limits anonymous pulls from shared runners. Without it, or if the login fails, the run goes on and pulls anonymously, which usually still works.
 - **Smoke** (`.github/workflows/smoke.yml`) checks secretli.app after every deploy, every hour and on demand. Flux announces each Secretli deploy once it is rolled out and healthy (or, for a deploy that only deletes something, once it has deleted it), as a `repository_dispatch` event (set up in pscheid92/k8s, `apps/secretli/deploy-notifications.yaml`); a deploy Flux reports as failed fails a run here, so it gets noticed. The smoke test checks health, the version and the routing, that every address of secretli.app answers, and shares and opens a secret that expires after five minutes and hands a link over with a code. `create_secrets: false` checks without writing to the server.
 - **CI** runs shellcheck on the scripts.
 
