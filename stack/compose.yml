@@ -11,8 +11,9 @@
 # (RATE_LIMIT_MULTIPLIER); production leaves that unset.
 #
 # Third-party images come from their official publications outside Docker
-# Hub, which limits pulls: Docker's own nginx and Postgres on Amazon ECR
-# Public, curl's on quay.io. Only SeaweedFS is on Docker Hub alone.
+# Hub, which limits pulls the most: Docker's own nginx and Postgres on Amazon
+# ECR Public, curl's on quay.io. Only SeaweedFS is on Docker Hub alone. ECR
+# Public turns bursts down too; stack.sh tries starting again.
 name: secretli-e2e
 
 services:

@@ -10,12 +10,27 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 compose=(docker compose -f "$here/compose.yml")
 
+# Registries limit anonymous pulls per address, and CI runners share theirs:
+# a burst of jobs is turned down ("Rate exceeded" from ECR Public,
+# "toomanyrequests" from Docker Hub) and passes a little later. Starting is
+# what pulls the missing images, so starting is what is tried again; what
+# already runs is left as it is.
+retry() {
+  for attempt in 1 2 3 4 5; do
+    "$@" && return 0
+    [ "$attempt" = 5 ] && break
+    echo "attempt $attempt failed, trying again in $((attempt * 10))s" >&2
+    sleep $((attempt * 10))
+  done
+  return 1
+}
+
 case "${1:-}" in
   up)
     # Images built locally (WEB_IMAGE, SERVER_IMAGE) are not on a registry;
     # only the published ones are refreshed.
     "${compose[@]}" pull --quiet --ignore-pull-failures 2> /dev/null || true
-    "${compose[@]}" up -d
+    retry "${compose[@]}" up -d
     for _ in $(seq 1 90); do
       if curl -fsS http://localhost:8080/api/v1/health/ready > /dev/null 2>&1 &&
          curl -fsS http://localhost:8080/ > /dev/null 2>&1; then
