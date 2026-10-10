@@ -6,10 +6,6 @@
 #
 #   SECRETLI_SERVER  the Secretli to test (default http://localhost:8080)
 #   SECRETLI_CLI     the secretli binary (default: secretli on PATH)
-#
-# It also runs with older releases of the client, to check that the server
-# still works with what people have installed: flags a release does not
-# know are left out, and journeys it cannot make are skipped.
 set -euo pipefail
 
 SERVER="${SECRETLI_SERVER:-http://localhost:8080}"
@@ -37,16 +33,6 @@ expect_exit() {
 curl -fsS "$SERVER/api/v1/health/ready" > /dev/null || fail "$SERVER is not ready"
 echo "client: $("$CLI" --version)"
 
-# Since v0.4.0 the client asks before it opens a one-time secret, and needs
-# --yes where it cannot ask; older releases open without asking and do not
-# know the flag. YES expands to --yes or to nothing.
-# (The help is read whole first: grep -q would stop reading early, and the
-# client's broken pipe would fail the check under pipefail.)
-YES=""
-case "$("$CLI" open --help 2>&1)" in
-  *--yes*) YES="--yes" ;;
-esac
-
 # --- a one-time text secret: share, look, open, and it is gone ---
 text="e2e $(date +%s) the launch code is 0000"
 "$CLI" share --server "$SERVER" -e 5m -t "$text" --json > "$work/shared.json"
@@ -60,15 +46,13 @@ expect_exit 0 "status before opening" -- "$CLI" status "$owner" --json
 
 # Opening uses it up, so the client asks first; where it cannot ask, as in
 # CI, it refuses without --yes and leaves the secret alone.
-if [ -z "$YES" ]; then
-  pass "a one-time secret is not opened without --yes (skipped: this client opens without asking)"
-elif ( : < /dev/tty ) 2> /dev/null; then
+if ( : < /dev/tty ) 2> /dev/null; then
   pass "a one-time secret is not opened without --yes (skipped: a terminal would be asked)"
 else
   expect_exit 1 "a one-time secret is not opened without --yes" -- "$CLI" open "$link"
 fi
 
-expect_exit 0 "open it" -- "$CLI" open "$link" ${YES}
+expect_exit 0 "open it" -- "$CLI" open "$link" --yes
 [ "$(cat "$work/out")" = "$text" ] || fail "opened text differs: $(cat "$work/out")"
 
 # The server keeps nothing about a secret once it is gone, so the owner link
@@ -97,7 +81,7 @@ fi
 SECRETLI_PASSWORD=wrong expect_exit 3 "a wrong password is refused" -- "$CLI" open "$link" --out "$work/wrong"
 
 # --yes saves both files; at a terminal the client would ask which.
-SECRETLI_PASSWORD=hunter2 expect_exit 0 "open with the password" -- "$CLI" open "$link" --out "$work/received" ${YES}
+SECRETLI_PASSWORD=hunter2 expect_exit 0 "open with the password" -- "$CLI" open "$link" --out "$work/received" --yes
 cmp -s "$work/big.bin" "$work/received/big.bin" || fail "big.bin differs after the round trip"
 cmp -s "$work/notes.txt" "$work/received/notes.txt" || fail "notes.txt differs after the round trip"
 pass "both files come back byte for byte"
@@ -112,12 +96,7 @@ expect_exit 0 "the owner link deletes" -- "$CLI" delete "$owner" --yes
 expect_exit 4 "and the owner link says it is gone" -- "$CLI" status "$owner" --json
 [ "$(jq -r .state "$work/out")" = gone ] || fail "state should be gone, got $(cat "$work/out")"
 
-# --- handing a link over with a code, through the relay (since v0.3.0) ---
-if ! "$CLI" send --help > /dev/null 2>&1; then
-  pass "handing a link over with a code (skipped: this client has no send)"
-  echo "all end-to-end checks passed against $SERVER"
-  exit 0
-fi
+# --- handing a link over with a code, through the relay ---
 # send_in_background LINK NAME: starts `send`, waits for the code it prints,
 # and leaves the code in $code and the process in $sender.
 send_in_background() {
@@ -135,7 +114,7 @@ text="e2e $(date +%s) handed over with a code"
 "$CLI" share --server "$SERVER" -e 5m -t "$text" -q > "$work/handover.link"
 send_in_background "$(cat "$work/handover.link")" handover
 pass "send prints a code"
-expect_exit 0 "receive opens what the code hands over" -- "$CLI" receive "$code" --server "$SERVER" ${YES}
+expect_exit 0 "receive opens what the code hands over" -- "$CLI" receive "$code" --server "$SERVER" --yes
 [ "$(cat "$work/out")" = "$text" ] || fail "received text differs: $(cat "$work/out")"
 got=0
 wait "$sender" || got=$?
@@ -148,12 +127,12 @@ text="e2e $(date +%s) never handed over"
 send_in_background "$(cat "$work/mismatch.link")" mismatch
 wrong="${code%%-*}-yoyo-zucchini"
 [ "$wrong" != "$code" ] || wrong="${code%%-*}-acid-rocket"
-expect_exit 3 "a wrong code is refused" -- "$CLI" receive "$wrong" --server "$SERVER" ${YES}
+expect_exit 3 "a wrong code is refused" -- "$CLI" receive "$wrong" --server "$SERVER" --yes
 got=0
 wait "$sender" || got=$?
 [ "$got" = 3 ] || fail "send should exit 3 on a wrong code, exited $got"
 pass "and the sender hears it too"
-expect_exit 0 "the secret was not handed over and still opens" -- "$CLI" open "$(cat "$work/mismatch.link")" ${YES}
+expect_exit 0 "the secret was not handed over and still opens" -- "$CLI" open "$(cat "$work/mismatch.link")" --yes
 [ "$(cat "$work/out")" = "$text" ] || fail "opened text differs: $(cat "$work/out")"
 
 echo "all end-to-end checks passed against $SERVER"

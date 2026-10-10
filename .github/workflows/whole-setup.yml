@@ -2,8 +2,8 @@ name: Whole setup
 
 # The whole of Secretli as production runs it, with both clients: the stack
 # (stack/), the gateway's routing, the command-line journeys
-# (cli/journeys.sh), the command-line client together with the browser
-# (browser/), and the oldest client release the server still supports.
+# (cli/journeys.sh), and the command-line client together with the browser
+# (browser/). Only the latest client release is supported, so only it runs.
 #
 # Runs here on every change and nightly, against everything at main. The
 # component repositories call it with their own change in place of one
@@ -11,6 +11,7 @@ name: Whole setup
 #
 #   whole-setup:
 #     uses: secretli/e2e/.github/workflows/whole-setup.yml@main
+#     secrets: inherit
 #     with:
 #       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
