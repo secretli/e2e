@@ -12,8 +12,11 @@
 name: secretli-e2e
 
 services:
+  # The web image is nginx already, unprivileged on port 8080 as the gateway
+  # needs; running the gateway on it saves pulling another image in every
+  # CI job that starts the stack.
   gateway:
-    image: nginx:alpine
+    image: ${WEB_IMAGE:-ghcr.io/secretli/web:main}
     ports:
       - "8080:8080"
     volumes:
@@ -61,8 +64,10 @@ services:
       AWS_SECRET_ACCESS_KEY: admin
     command: "server -s3 -dir=/data"
 
+  # The SeaweedFS image has curl too, so the bucket is made with the image
+  # the stack pulls anyway.
   createbucket:
-    image: curlimages/curl:8.22.0
+    image: chrislusf/seaweedfs:4.48
     depends_on:
       - seaweedfs
     entrypoint: >
