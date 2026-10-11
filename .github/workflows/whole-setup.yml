@@ -11,7 +11,8 @@ name: Whole setup
 #
 #   whole-setup:
 #     uses: secretli/e2e/.github/workflows/whole-setup.yml@main
-#     secrets: inherit
+#     secrets:
+#       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 #     with:
 #       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -47,8 +48,8 @@ on:
       cli_ref:
         type: string
         default: ""
-    # Callers pass it with `secrets: inherit`; without it, images are pulled
-    # anonymously.
+    # Callers pass it by name, not with `secrets: inherit`, which would hand
+    # over every secret they have; without it, images are pulled anonymously.
     secrets:
       DOCKERHUB_TOKEN:
         required: false
