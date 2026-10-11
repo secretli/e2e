@@ -39,12 +39,13 @@ Every test comes from one address, so the stack's server runs with raised rate l
   ```yaml
   whole-setup:
     uses: secretli/e2e/.github/workflows/whole-setup.yml@main
-    secrets: inherit
+    secrets:
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     with:
       server_ref: ${{ github.event.pull_request.head.sha || github.sha }}
   ```
 
-  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. Only the latest client is supported, so the journeys run with that one alone. `secrets: inherit` passes on the organisation's Docker Hub token (secret `DOCKERHUB_TOKEN`, user in the variable `DOCKERHUB_USERNAME`), a read-only login for pulling the stack's images, since Docker Hub limits anonymous pulls from shared runners. Without it, images are pulled anonymously; a login that fails fails the run.
+  `server_ref` and `web_ref` build that component at the ref instead of pulling its image, and `cli_ref` builds the client instead of installing its latest release. Only the latest client is supported, so the journeys run with that one alone. Callers pass the organisation's Docker Hub token (secret `DOCKERHUB_TOKEN`, user in the variable `DOCKERHUB_USERNAME`) by name, a read-only login for pulling the stack's images, since Docker Hub limits anonymous pulls from shared runners; not `secrets: inherit`, which would hand over every secret the caller has, the CLI's Homebrew deploy key among them. Without the token, images are pulled anonymously; a login that fails fails the run.
 - **Smoke** (`.github/workflows/smoke.yml`) checks secretli.app after every deploy, every hour and on demand. Flux announces each Secretli deploy once it is rolled out and healthy (or, for a deploy that only deletes something, once it has deleted it), as a `repository_dispatch` event (set up in pscheid92/k8s, `apps/secretli/deploy-notifications.yaml`); a deploy Flux reports as failed fails a run here, so it gets noticed. The smoke test checks health, the version and the routing, that every address of secretli.app answers, and shares and opens a secret that expires after five minutes and hands a link over with a code. `create_secrets: false` checks without writing to the server.
 - **CI** runs shellcheck on the scripts.
 
