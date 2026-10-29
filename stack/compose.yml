@@ -58,7 +58,7 @@ services:
       retries: 30
 
   seaweedfs:
-    image: chrislusf/seaweedfs:4.48
+    image: chrislusf/seaweedfs:4.51
     environment:
       AWS_ACCESS_KEY_ID: admin
       AWS_SECRET_ACCESS_KEY: admin
@@ -67,7 +67,7 @@ services:
   # The SeaweedFS image has curl too, so the bucket is made with the image
   # the stack pulls anyway.
   createbucket:
-    image: chrislusf/seaweedfs:4.48
+    image: chrislusf/seaweedfs:4.51
     depends_on:
       - seaweedfs
     entrypoint: >
