@@ -1,7 +1,7 @@
 name: Smoke
 
 # Checks a deployed Secretli from the outside (smoke/smoke.sh): after every
-# deploy, every hour and on demand. Health, the version and the gateway's
+# deploy, twice a day and on demand. Health, the version and the gateway's
 # routing, through every address the name resolves to, and it shares and opens a test secret that expires after five
 # minutes and hands a link over with a code. create_secrets: false checks
 # without writing.
@@ -19,7 +19,9 @@ run-name: ${{ github.event_name == 'repository_dispatch' && format('After deploy
 on:
   repository_dispatch:
   schedule:
-    - cron: "41 * * * *"
+    # 00:41 and 12:41 UTC. GitHub starts scheduled runs late and drops some
+    # when it is busy, more so at the full hour: a day may see fewer.
+    - cron: "41 */12 * * *"
   workflow_dispatch:
     inputs:
       url:
